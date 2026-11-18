@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Name Search Game</title>
+<style>
+  :root {
+    --bg: #fdf8f3;
+    --ink: #2b2233;
+    --muted: #7a6f80;
+    --accent: #c2410c;
+    --accent-2: #7c3aed;
+    --card: #ffffff;
+    --line: #e7dfd6;
+    --cell: 38px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+  }
+  header.app {
+    padding: 14px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--line);
+    background: #fff;
+  }
+  header.app .brand { font-weight: 700; letter-spacing: .02em; }
+  header.app .brand span { color: var(--accent); }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px; }
+  .hidden { display: none !important; }
+
+  /* ---------- Setup ---------- */
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 14px; padding: 24px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.03);
+  }
+  .setup h1 { margin: 0 0 4px; font-size: 26px; }
+  .setup p.lead { margin: 0 0 20px; color: var(--muted); }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  label { display: block; font-weight: 600; font-size: 14px; margin: 14px 0 6px; }
+  label small { font-weight: 400; color: var(--muted); }
+  input[type=text], textarea, select {
+    width: 100%; padding: 10px 12px; font-size: 15px;
+    border: 1px solid var(--line); border-radius: 10px; background: #fff;
+    font-family: inherit; color: var(--ink);
+  }
+  textarea { min-height: 200px; resize: vertical; line-height: 1.5; }
+  input:focus, textarea:focus, select:focus { outline: 2px solid #fdba74; border-color: transparent; }
+  .drop {
+    border: 2px dashed var(--line); border-radius: 12px; padding: 16px;
+    text-align: center; color: var(--muted); cursor: pointer; transition: .15s;
+    margin-bottom: 8px;
+  }
+  .drop.over, .drop:hover { border-color: var(--accent); color: var(--accent); background: #fff7ed; }
+  .count { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  .actions { margin-top: 22px; display: flex; gap: 10px; flex-wrap: wrap; }
+  button {
+    font: inherit; font-weight: 600; font-size: 15px;
+    padding: 10px 18px; border-radius: 10px; border: 1px solid var(--line);
+    background: #fff; color: var(--ink); cursor: pointer;
+  }
+  button:hover { background: #faf5ef; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { background: #9a3412; }
+  .error { color: #b91c1c; font-size: 14px; margin-top: 10px; }
+
+  /* ---------- Game ---------- */
+  .occasion {
+    text-align: center; margin: 4px 0 22px;
+  }
+  .occasion h2 {
+    margin: 0; font-size: 38px; font-family: Georgia, "Times New Roman", serif;
+    color: var(--accent-2);
+  }
+  .occasion .sub { color: var(--muted); margin-top: 6px; font-size: 16px; }
+  .occasion .rule { width: 120px; height: 3px; background: var(--accent); margin: 12px auto 0; border-radius: 3px; }
+
+  .toolbar {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 10px; flex-wrap: wrap; margin-bottom: 16px;
+  }
+  .stats { display: flex; gap: 18px; font-weight: 600; }
+  .stats .pill { background: #fff; border: 1px solid var(--line); padding: 6px 12px; border-radius: 999px; }
+  .toolbar .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .toolbar button { padding: 8px 14px; font-size: 14px; }
+
+  .board { display: flex; gap: 24px; align-items: flex-start; justify-content: center; flex-wrap: wrap; }
+  .grid-wrap {
+    background: #fff; border: 3px solid var(--ink); border-radius: 6px; padding: 0;
+    touch-action: none; user-select: none; -webkit-user-select: none;
+  }
+  .grid { display: grid; }
+  .cell {
+    width: var(--cell); height: var(--cell);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: calc(var(--cell) * .5);
+    border-right: 1px solid #d6cfc7; border-bottom: 1px solid #d6cfc7;
+    cursor: pointer; position: relative; transition: background .1s;
+  }
+  .cell.r-last { border-bottom: none; }
+  .cell.c-last { border-right: none; }
+  .cell.sel { background: #fde68a !important; }
+  .cell.hint { animation: pulse 1s ease-in-out 3; }
+  @keyframes pulse { 50% { background: #fca5a5; } }
+
+  .words {
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 16px 18px; min-width: 220px; max-width: 320px;
+  }
+  .words h3 { margin: 0 0 10px; font-size: 15px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .words ul { list-style: none; margin: 0; padding: 0; columns: 2; column-gap: 18px; }
+  .words li { padding: 4px 0; font-size: 15px; break-inside: avoid; }
+  .words li.found { text-decoration: line-through; color: var(--muted); }
+  .words li .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; background: #e5e7eb; }
+
+  /* ---------- Win ---------- */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(43,34,51,.45);
+    display: flex; align-items: center; justify-content: center; z-index: 50;
+  }
+  .overlay .card { text-align: center; max-width: 420px; }
+  .overlay h2 { margin: 0 0 8px; font-size: 30px; color: var(--accent-2); }
+  canvas#confetti { position: fixed; inset: 0; pointer-events: none; z-index: 60; }
+
+  @media (max-width: 720px) {
+    .row { grid-template-columns: 1fr; }
+    .occasion h2 { font-size: 28px; }
+  }
+
+  .export {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    padding: 10px 14px; margin-bottom: 18px;
+  }
+  .export-label { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  label.inline { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 14px; }
+  label.inline select { width: auto; padding: 6px 8px; font-size: 14px; }
+  label.check { font-weight: 500; }
+  .export button { padding: 8px 14px; font-size: 14px; }
+
+  /* ---------- Print ---------- */
+  @media print {
+    header.app, .toolbar, .export, .overlay, canvas#confetti { display: none !important; }
+    body { background: #fff; }
+    main { padding: 0; }
+    .cell { background: #fff !important; color: #000 !important; }
+    .words li { text-decoration: none !important; color: #000 !important; }
+    .words li .dot { display: none; }
+    .words { border: none; }
+  }
+</style>
+</head>
+<body>
+<header class="app">
+  <div class="brand">Name<span>Search</span></div>
+  <div id="headerActions"></div>
+</header>
+
+<main>
+  <!-- SETUP -->
+  <section id="setup" class="setup card">
+    <h1>Create your name search puzzle</h1>
+    <p class="lead">Add the occasion and a list of names. The names get hidden in a crossword-style grid for guests to find.</p>
+
+    <div class="row">
+      <div>
+        <label for="occasion">Occasion heading</label>
+        <input id="occasion" type="text" placeholder="e.g. Ananya's Baby Shower" />
+        <label for="subtitle">Subheading <small>(optional)</small></label>
+        <input id="subtitle" type="text" placeholder="e.g. Find all the family names! · 18 Nov 2026" />
+
+        <label for="difficulty">Difficulty</label>
+        <select id="difficulty">
+          <option value="easy">Easy: across and down only</option>
+          <option value="medium" selected>Medium: adds diagonals</option>
+          <option value="hard">Hard: adds backwards words</option>
+        </select>
+      </div>
+
+      <div>
+        <label>Names <small>(one per line, or separated by commas)</small></label>
+        <div class="drop" id="drop">
+          📄 Click to upload, or drop a <b>.txt</b> / <b>.csv</b> file here
+          <input type="file" id="file" accept=".txt,.csv,text/plain,text/csv" hidden />
+        </div>
+        <textarea id="names" placeholder="Aarav&#10;Diya&#10;Rohan&#10;Meera&#10;Kabir"></textarea>
+        <div class="count" id="count">0 names</div>
+      </div>
+    </div>
+
+    <div class="error hidden" id="error"></div>
+    <div class="actions">
+      <button class="primary" id="generate">Generate puzzle</button>
+      <button id="sample">Fill sample names</button>
+      <button id="clear">Clear</button>
+    </div>
+  </section>
+
+  <!-- GAME -->
+  <section id="game" class="hidden">
+    <div class="occasion">
+      <h2 id="gTitle"></h2>
+      <div class="sub" id="gSub"></div>
+      <div class="rule"></div>
+    </div>
+
+    <div class="toolbar">
+      <div class="stats">
+        <div class="pill">Found: <span id="found">0</span>/<span id="total">0</span></div>
+        <div class="pill">⏱ <span id="timer">0:00</span></div>
+      </div>
+      <div class="btns">
+        <button id="hintBtn">💡 Hint</button>
+        <button id="revealBtn">Reveal all</button>
+        <button id="shuffleBtn">New grid</button>
+        <button id="editBtn">✏️ Edit names</button>
+      </div>
+    </div>
+
+    <div class="export">
+      <span class="export-label">Print / Download</span>
+      <label class="inline">Page size
+        <select id="pageSize">
+          <option value="A1">A1 (594 × 841 mm)</option>
+          <option value="A2">A2 (420 × 594 mm)</option>
+          <option value="A3">A3 (297 × 420 mm)</option>
+          <option value="A4" selected>A4 (210 × 297 mm)</option>
+          <option value="A5">A5 (148 × 210 mm)</option>
+          <option value="A6">A6 (105 × 148 mm)</option>
+        </select>
+      </label>
+      <label class="inline">Orientation
+        <select id="orientation">
+          <option value="portrait" selected>Portrait</option>
+          <option value="landscape">Landscape</option>
+        </select>
+      </label>
+      <label class="inline check"><input type="checkbox" id="answerKey" /> Add answer key page</label>
+      <button class="primary" id="downloadBtn">⬇ Download PDF</button>
+      <button id="printBtn">🖨 Print</button>
+      <button id="downloadHtmlBtn" title="Save a copy of this game that works offline">⬇ Download game (HTML)</button>
+    </div>
+
+    <div class="board">
+      <div class="grid-wrap"><div class="grid" id="grid"></div></div>
+      <div class="words">
+        <h3>Find these names</h3>
+        <ul id="wordList"></ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="overlay hidden" id="win">
+  <div class="card">
+    <h2>🎉 You found them all!</h2>
+    <p id="winText"></p>
+    <div class="actions" style="justify-content:center">
+      <button class="primary" id="againBtn">Play again</button>
+      <button id="closeWin">Close</button>
+    </div>
+  </div>
+</div>
+<canvas id="confetti"></canvas>
+
+<script>
+(() => {
+  const PRISTINE = document.documentElement.outerHTML; // clean copy for "Download game"
+  const $ = id => document.getElementById(id);
+  const COLORS = ['#fecaca','#fed7aa','#fde68a','#bbf7d0','#a5f3fc','#bfdbfe','#ddd6fe','#fbcfe8','#d9f99d','#99f6e4','#e9d5ff','#fecdd3'];
+  const DOT    = ['#ef4444','#f97316','#eab308','#22c55e','#06b6d4','#3b82f6','#8b5cf6','#ec4899','#84cc16','#14b8a6','#a855f7','#f43f5e'];
+  const SAMPLE = ['Aarav','Diya','Rohan','Meera','Kabir','Ishaan','Anika','Vihaan','Saanvi','Arjun','Priya','Nikhil'];
+  const STORE = 'nameSearchGame.v1';
+
+  const state = { grid: [], size: 0, words: [], found: new Set(), startTime: 0, timerId: null, cellEls: [] };
+
+  // ---------- Parsing names ----------
+  function parseNames(text) {
+    const seen = new Set();
+    return text.split(/[\n,;\t]+/)
+      .map(s => s.replace(/^["']|["']$/g, '').trim())
+      .filter(Boolean)
+      .map(display => ({ display, key: display.toUpperCase().replace(/[^A-Z]/g, '') }))
+      .filter(w => w.key.length >= 2 && !seen.has(w.key) && seen.add(w.key));
+  }
+  function updateCount() {
+    const n = parseNames($('names').value).length;
+    $('count').textContent = `${n} name${n === 1 ? '' : 's'}`;
+  }
+
+  // ---------- File upload ----------
+  function loadFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      let text = String(reader.result);
+      // If CSV with a header like "name", drop the header
+      const lines = text.split(/\r?\n/);
+      if (/^\s*"?(names?|full ?name|guest)s?"?\s*(,|$)/i.test(lines[0] || '')) lines.shift();
+      // For CSV, keep only the first column of each row
+      if (file.name.toLowerCase().endsWith('.csv')) text = lines.map(l => l.split(',')[0]).join('\n');
+      else text = lines.join('\n');
+      const existing = $('names').value.trim();
+      $('names').value = (existing ? existing + '\n' : '') + text.trim();
+      updateCount();
+    };
+    reader.readAsText(file);
+  }
+  const drop = $('drop');
+  drop.addEventListener('click', () => $('file').click());
+  $('file').addEventListener('change', e => { loadFile(e.target.files[0]); e.target.value = ''; });
+  ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', e => loadFile(e.dataTransfer.files[0]));
+  $('names').addEventListener('input', updateCount);
+
+  $('sample').onclick = () => {
+    if (!$('occasion').value) $('occasion').value = 'Family Get-Together';
+    $('names').value = SAMPLE.join('\n'); updateCount();
+  };
+  $('clear').onclick = () => { $('names').value = ''; updateCount(); };
+
+  // ---------- Grid generation ----------
+  function directions(diff) {
+    const d = [[0,1],[1,0]];
+    if (diff !== 'easy') d.push([1,1],[-1,1]);
+    if (diff === 'hard') d.push([0,-1],[-1,0],[-1,-1],[1,-1]);
+    return d;
+  }
+
+  function tryBuild(words, size, dirs) {
+    const g = Array.from({ length: size }, () => Array(size).fill(''));
+    const placed = [];
+    const sorted = [...words].sort((a, b) => b.key.length - a.key.length);
+    for (const w of sorted) {
+      const L = w.key.length;
+      let best = [], bestScore = -1;
+      for (const [dr, dc] of dirs) {
+        for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) {
+          const er = r + dr * (L - 1), ec = c + dc * (L - 1);
+          if (er < 0 || er >= size || ec < 0 || ec >= size) continue;
+          let overlap = 0, ok = true;
+          for (let i = 0; i < L; i++) {
+            const ch = g[r + dr * i][c + dc * i];
+            if (ch && ch !== w.key[i]) { ok = false; break; }
+            if (ch) overlap++;
+          }
+          if (!ok || overlap === L) continue;
+          // Prefer crossings (crossword feel) with a bit of randomness
+          const score = overlap * 3 + Math.random() * 2;
+          if (score > bestScore + 0.5) { best = [[r, c, dr, dc]]; bestScore = score; }
+          else if (Math.abs(score - bestScore) <= 0.5) best.push([r, c, dr, dc]);
+        }
+      }
+      if (!best.length) return null;
+      const [r, c, dr, dc] = best[Math.floor(Math.random() * best.length)];
+      const cells = [];
+      for (let i = 0; i < L; i++) { g[r + dr * i][c + dc * i] = w.key[i]; cells.push([r + dr * i, c + dc * i]); }
+      placed.push({ ...w, cells });
+    }
+    return { g, placed };
+  }
+
+  function buildPuzzle(words, diff) {
+    const dirs = directions(diff);
+    const longest = Math.max(...words.map(w => w.key.length));
+    const letters = words.reduce((s, w) => s + w.key.length, 0);
+    let size = Math.max(longest + 1, Math.ceil(Math.sqrt(letters * 1.8)), 8);
+    for (; size <= 30; size++) {
+      for (let attempt = 0; attempt < 25; attempt++) {
+        const res = tryBuild(words, size, dirs);
+        if (res) {
+          // Fill blanks with letters drawn from the names themselves (harder to spot)
+          const pool = words.map(w => w.key).join('') + 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+          for (const row of res.g) for (let c = 0; c < size; c++)
+            if (!row[c]) row[c] = pool[Math.floor(Math.random() * pool.length)];
+          // Keep original list order for display
+          res.placed.sort((a, b) => words.indexOf(words.find(w => w.key === a.key)) - words.indexOf(words.find(w => w.key === b.key)));
+          return { size, ...res };
+        }
+      }
+    }
+    return null;
+  }
+
+  // ---------- Rendering ----------
+  function render() {
+    const { size, grid } = state;
+    const avail = Math.min(window.innerWidth - 60, 640);
+    const cell = Math.max(22, Math.min(44, Math.floor(avail / size)));
+    document.documentElement.style.setProperty('--cell', cell + 'px');
+
+    const gEl = $('grid');
+    gEl.style.gridTemplateColumns = `repeat(${size}, var(--cell))`;
+    gEl.innerHTML = '';
+    state.cellEls = [];
+    for (let r = 0; r < size; r++) {
+      state.cellEls.push([]);
+      for (let c = 0; c < size; c++) {
+        const d = document.createElement('div');
+        d.className = 'cell' + (r === size - 1 ? ' r-last' : '') + (c === size - 1 ? ' c-last' : '');
+        d.textContent = grid[r][c];
+        d.dataset.r = r; d.dataset.c = c;
+        gEl.appendChild(d);
+        state.cellEls[r].push(d);
+      }
+    }
+    const ul = $('wordList');
+    ul.innerHTML = '';
+    state.words.forEach((w, i) => {
+      const li = document.createElement('li');
+      li.id = 'w' + i;
+      li.innerHTML = `<span class="dot"></span>${escapeHtml(w.display)}`;
+      ul.appendChild(li);
+    });
+    $('total').textContent = state.words.length;
+    $('found').textContent = 0;
+    $('gTitle').textContent = $('occasion').value.trim() || 'Name Search';
+    $('gSub').textContent = $('subtitle').value.trim();
+  }
+  function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+
+  function paintFound(idx) {
+    const w = state.words[idx];
+    const color = COLORS[idx % COLORS.length];
+    for (const [r, c] of w.cells) state.cellEls[r][c].style.background = color;
+    const li = $('w' + idx);
+    li.classList.add('found');
+    li.querySelector('.dot').style.background = DOT[idx % DOT.length];
+  }
+
+  // ---------- Selection (mouse + touch) ----------
+  let selStart = null, selCells = [];
+  function cellFromPoint(x, y) {
+    const el = document.elementFromPoint(x, y);
+    return el && el.classList.contains('cell') ? [+el.dataset.r, +el.dataset.c] : null;
+  }
+  function lineCells(a, b) {
+    let dr = b[0] - a[0], dc = b[1] - a[1];
+    const adr = Math.abs(dr), adc = Math.abs(dc);
+    // Snap to nearest of 8 directions
+    if (adr && adc && adr !== adc) {
+      if (adr > adc * 2) dc = 0; else if (adc > adr * 2) dr = 0;
+      else { const m = Math.min(adr, adc); dr = Math.sign(dr) * m; dc = Math.sign(dc) * m; }
+    }
+    const len = Math.max(Math.abs(dr), Math.abs(dc));
+    const sr = Math.sign(dr), sc = Math.sign(dc);
+    const out = [];
+    for (let i = 0; i <= len; i++) out.push([a[0] + sr * i, a[1] + sc * i]);
+    return out;
+  }
+  function showSel(cells) {
+    selCells.forEach(([r, c]) => state.cellEls[r][c].classList.remove('sel'));
+    selCells = cells;
+    selCells.forEach(([r, c]) => state.cellEls[r][c].classList.add('sel'));
+  }
+  const gridEl = $('grid');
+  gridEl.addEventListener('pointerdown', e => {
+    const p = cellFromPoint(e.clientX, e.clientY);
+    if (!p) return;
+    e.preventDefault();
+    selStart = p; showSel([p]);
+  });
+  window.addEventListener('pointermove', e => {
+    if (!selStart) return;
+    const p = cellFromPoint(e.clientX, e.clientY);
+    if (p) showSel(lineCells(selStart, p));
+  });
+  window.addEventListener('pointerup', () => {
+    if (!selStart) return;
+    checkSelection(selCells);
+    showSel([]); selStart = null;
+  });
+
+  function checkSelection(cells) {
+    if (cells.length < 2) return;
+    const key = cells.map(([r, c]) => state.grid[r][c]).join('');
+    const rev = [...key].reverse().join('');
+    const sig = cells.map(p => p.join(',')).join('|');
+    const sigRev = [...cells].reverse().map(p => p.join(',')).join('|');
+    let idx = state.words.findIndex((w, i) => !state.found.has(i) &&
+      [sig, sigRev].includes(w.cells.map(p => p.join(',')).join('|')));
+    // Also accept the same name found at a different spot (random fill can create duplicates)
+    if (idx < 0) idx = state.words.findIndex((w, i) => !state.found.has(i) && (w.key === key || w.key === rev));
+    if (idx < 0) return;
+    if (state.words[idx].cells.map(p => p.join(',')).join('|') !== sig &&
+        state.words[idx].cells.map(p => p.join(',')).join('|') !== sigRev) state.words[idx].cells = cells;
+    state.found.add(idx);
+    paintFound(idx);
+    $('found').textContent = state.found.size;
+    if (state.found.size === state.words.length) win();
+  }
+
+  // ---------- Timer ----------
+  function startTimer() {
+    stopTimer();
+    state.startTime = Date.now();
+    state.timerId = setInterval(() => { $('timer').textContent = fmt(Date.now() - state.startTime); }, 500);
+    $('timer').textContent = '0:00';
+  }
+  function stopTimer() { clearInterval(state.timerId); state.timerId = null; }
+  function fmt(ms) { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
+
+  // ---------- Game flow ----------
+  function newGame() {
+    const words = parseNames($('names').value);
+    const err = $('error');
+    err.classList.add('hidden');
+    if (words.length < 1) { err.textContent = 'Please add at least one name (2+ letters).'; err.classList.remove('hidden'); return; }
+    if (words.length > 60) { err.textContent = 'That is a lot of names. Please keep it to 60 or fewer.'; err.classList.remove('hidden'); return; }
+    const puzzle = buildPuzzle(words, $('difficulty').value);
+    if (!puzzle) { err.textContent = 'Could not fit those names. Try fewer or shorter names.'; err.classList.remove('hidden'); return; }
+    state.size = puzzle.size; state.grid = puzzle.g; state.words = puzzle.placed; state.found = new Set();
+    save();
+    render();
+    $('setup').classList.add('hidden');
+    $('game').classList.remove('hidden');
+    $('win').classList.add('hidden');
+    startTimer();
+  }
+
+  function win() {
+    stopTimer();
+    $('winText').textContent = `All ${state.words.length} names found in ${fmt(Date.now() - state.startTime)}.`;
+    $('win').classList.remove('hidden');
+    confetti();
+  }
+
+  $('generate').onclick = newGame;
+  $('shuffleBtn').onclick = newGame;
+  $('againBtn').onclick = newGame;
+  $('closeWin').onclick = () => $('win').classList.add('hidden');
+  $('editBtn').onclick = () => { stopTimer(); $('game').classList.add('hidden'); $('setup').classList.remove('hidden'); };
+  // ---------- PDF export (vector, A1–A6) ----------
+  const PAGE_MM = { A1: [594, 841], A2: [420, 594], A3: [297, 420], A4: [210, 297], A5: [148, 210], A6: [105, 148] };
+  const MM = 72 / 25.4;
+  const measureCtx = document.createElement('canvas').getContext('2d');
+  function textW(str, size, bold) {
+    measureCtx.font = `${bold ? 'bold ' : ''}100px Helvetica, Arial, sans-serif`;
+    return measureCtx.measureText(str).width / 100 * size;
+  }
+  function pdfStr(s) {
+    // Standard PDF fonts use WinAnsi (Latin-1); replace anything outside it
+    return '(' + [...s].map(ch => ch.charCodeAt(0) < 256 ? ch : '?').join('')
+      .replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)') + ')';
+  }
+  function rgb(hex) {
+    return [1, 3, 5].map(i => (parseInt(hex.slice(i, i + 2), 16) / 255).toFixed(3)).join(' ');
+  }
+  // Shrink a heading until it fits the width
+  function fitSize(str, maxW, size, bold) {
+    while (size > 6 && textW(str, size, bold) > maxW) size *= 0.95;
+    return size;
+  }
+
+  function pageContent(W, H, showAnswers) {
+    const out = [];
+    const T = y => (H - y).toFixed(2); // convert top-based y to PDF coordinates
+    const text = (str, x, y, size, bold, color = '0.169 0.133 0.200') =>
+      out.push(`BT /${bold ? 'F1' : 'F2'} ${size.toFixed(2)} Tf ${color} rg ${x.toFixed(2)} ${T(y)} Td ${pdfStr(str)} Tj ET`);
+    const center = (str, cx, y, size, bold, color) => text(str, cx - textW(str, size, bold) / 2, y, size, bold, color);
+
+    const short = Math.min(W, H);
+    const m = short * 0.07;
+    const cw = W - 2 * m;
+    let y = m;
+
+    // Heading
+    const title = ($('occasion').value.trim() || 'Name Search') + (showAnswers ? ' (Answers)' : '');
+    const tSize = fitSize(title, cw, short * 0.07, true);
+    y += tSize;
+    center(title, W / 2, y, tSize, true, '0.486 0.227 0.929');
+    const sub = $('subtitle').value.trim();
+    if (sub) {
+      const sSize = fitSize(sub, cw, short * 0.032, false);
+      y += sSize * 1.6;
+      center(sub, W / 2, y, sSize, false, '0.478 0.435 0.502');
+    }
+    y += short * 0.02;
+    out.push(`0.761 0.255 0.047 RG ${(short * 0.006).toFixed(2)} w ${(W / 2 - short * 0.1).toFixed(2)} ${T(y)} m ${(W / 2 + short * 0.1).toFixed(2)} ${T(y)} l S`);
+    y += short * 0.04;
+
+    // Layout: grid + word list (below in portrait, beside in landscape)
+    const n = state.size;
+    const landscape = W > H;
+    const availH = H - m - y;
+    const wordSize = short * 0.026;
+    const names = state.words.map(w => w.display);
+    const longestName = Math.max(...names.map(s => textW(s, wordSize, false))) + wordSize * 2;
+    let side, gx, gy = y, listX, listY, listW;
+    if (landscape) {
+      side = Math.min(availH, cw * 0.66);
+      gx = m;
+      listX = m + side + short * 0.05; listY = y; listW = W - m - listX;
+    } else {
+      const rowsGuess = Math.ceil(names.length / Math.max(1, Math.floor(cw / longestName)));
+      const listH = (rowsGuess + 2) * wordSize * 1.7;
+      side = Math.min(cw, availH - listH);
+      gx = (W - side) / 2;
+      listX = m; listY = y + side + short * 0.05; listW = cw;
+    }
+    const cell = side / n;
+
+    // Answer highlights
+    if (showAnswers) {
+      state.words.forEach((w, i) => {
+        out.push(`${rgb(COLORS[i % COLORS.length])} rg`);
+        for (const [r, c] of w.cells)
+          out.push(`${(gx + c * cell).toFixed(2)} ${T(gy + (r + 1) * cell)} ${cell.toFixed(2)} ${cell.toFixed(2)} re f`);
+      });
+    }
+    // Grid lines
+    out.push(`0.839 0.812 0.780 RG ${(cell * 0.025).toFixed(2)} w`);
+    for (let i = 1; i < n; i++) {
+      out.push(`${(gx + i * cell).toFixed(2)} ${T(gy)} m ${(gx + i * cell).toFixed(2)} ${T(gy + side)} l S`);
+      out.push(`${gx.toFixed(2)} ${T(gy + i * cell)} m ${(gx + side).toFixed(2)} ${T(gy + i * cell)} l S`);
+    }
+    out.push(`0.169 0.133 0.200 RG ${(cell * 0.07).toFixed(2)} w ${gx.toFixed(2)} ${T(gy + side)} ${side.toFixed(2)} ${side.toFixed(2)} re S`);
+    // Letters
+    const lSize = cell * 0.55;
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++)
+      center(state.grid[r][c], gx + (c + 0.5) * cell, gy + (r + 0.5) * cell + lSize * 0.36, lSize, true);
+
+    // Word list with tick boxes
+    const hSize = wordSize * 0.95;
+    text('FIND THESE NAMES', listX, listY + hSize, hSize, true, '0.478 0.435 0.502');
+    let ly = listY + hSize * 2.6;
+    const colW = Math.max(longestName, wordSize * 6);
+    const cols = Math.max(1, Math.floor(listW / colW));
+    const rows = Math.ceil(names.length / cols);
+    const lineH = wordSize * 1.7;
+    const box = wordSize * 0.8;
+    out.push(`0.169 0.133 0.200 RG ${(wordSize * 0.06).toFixed(2)} w`);
+    names.forEach((name, i) => {
+      const x = listX + Math.floor(i / rows) * colW;
+      const yy = ly + (i % rows) * lineH;
+      out.push(`${x.toFixed(2)} ${T(yy)} ${box.toFixed(2)} ${box.toFixed(2)} re S`);
+      text(name, x + box * 1.6, yy, wordSize, false);
+    });
+    return out.join('\n');
+  }
+
+  function buildPdf() {
+    const [wmm, hmm] = PAGE_MM[$('pageSize').value];
+    const land = $('orientation').value === 'landscape';
+    const W = (land ? hmm : wmm) * MM, H = (land ? wmm : hmm) * MM;
+    const pages = [pageContent(W, H, false)];
+    if ($('answerKey').checked) pages.push(pageContent(W, H, true));
+
+    const objs = [];
+    const kids = pages.map((_, i) => `${5 + i * 2} 0 R`).join(' ');
+    objs[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+    objs[2] = `<< /Type /Pages /Kids [${kids}] /Count ${pages.length} >>`;
+    objs[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>';
+    objs[4] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
+    pages.forEach((content, i) => {
+      objs[5 + i * 2] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W.toFixed(2)} ${H.toFixed(2)}] ` +
+        `/Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${6 + i * 2} 0 R >>`;
+      objs[6 + i * 2] = `<< /Length ${content.length} >>\nstream\n${content}\nendstream`;
+    });
+    let pdf = '%PDF-1.4\n';
+    const offsets = [];
+    for (let i = 1; i < objs.length; i++) { offsets[i] = pdf.length; pdf += `${i} 0 obj\n${objs[i]}\nendobj\n`; }
+    const xref = pdf.length;
+    pdf += `xref\n0 ${objs.length}\n0000000000 65535 f \n` +
+      offsets.slice(1).map(o => String(o).padStart(10, '0') + ' 00000 n \n').join('') +
+      `trailer\n<< /Size ${objs.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+    const bytes = Uint8Array.from(pdf, ch => ch.charCodeAt(0) & 0xff);
+    return new Blob([bytes], { type: 'application/pdf' });
+  }
+  function fileBase() {
+    return ($('occasion').value.trim() || 'name-search').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'name-search';
+  }
+  function saveBlob(blob, name) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  }
+  $('downloadBtn').onclick = () => saveBlob(buildPdf(), `${fileBase()}-${$('pageSize').value}.pdf`);
+  $('printBtn').onclick = () => {
+    const url = URL.createObjectURL(buildPdf());
+    const win = window.open(url, '_blank');
+    if (!win) saveBlob(buildPdf(), `${fileBase()}-${$('pageSize').value}.pdf`);
+  };
+  // Save a self-contained copy of the game, pre-filled with the current heading and names
+  $('downloadHtmlBtn').onclick = () => {
+    save();
+    const preset = JSON.stringify({
+      occasion: $('occasion').value, subtitle: $('subtitle').value,
+      names: $('names').value, difficulty: $('difficulty').value,
+    }).replace(/</g, '\\u003c');
+    const html = '<!DOCTYPE html>\n' + PRISTINE
+      .replace(/<script id="preset"[\s\S]*?<\/script>/, '')
+      .replace('</head>', `<script id="preset">window.NAME_SEARCH_PRESET = ${preset};<\/script>\n</head>`);
+    saveBlob(new Blob([html], { type: 'text/html' }), `${fileBase()}-game.html`);
+  };
+  $('hintBtn').onclick = () => {
+    const left = state.words.map((_, i) => i).filter(i => !state.found.has(i));
+    if (!left.length) return;
+    const w = state.words[left[Math.floor(Math.random() * left.length)]];
+    const [r, c] = w.cells[0];
+    const el = state.cellEls[r][c];
+    el.classList.remove('hint'); void el.offsetWidth; el.classList.add('hint');
+  };
+  $('revealBtn').onclick = () => {
+    state.words.forEach((_, i) => { if (!state.found.has(i)) { state.found.add(i); paintFound(i); } });
+    $('found').textContent = state.found.size;
+    stopTimer();
+  };
+  window.addEventListener('resize', () => {
+    if (!state.size) return;
+    const found = [...state.found];
+    render(); found.forEach(paintFound);
+    $('found').textContent = state.found.size;
+  });
+
+  // ---------- Persistence ----------
+  function save() {
+    localStorage.setItem(STORE, JSON.stringify({
+      occasion: $('occasion').value, subtitle: $('subtitle').value,
+      names: $('names').value, difficulty: $('difficulty').value,
+    }));
+  }
+  const preset = window.NAME_SEARCH_PRESET;
+  try {
+    const s = preset || JSON.parse(localStorage.getItem(STORE) || '{}');
+    if (s.occasion) $('occasion').value = s.occasion;
+    if (s.subtitle) $('subtitle').value = s.subtitle;
+    if (s.names) $('names').value = s.names;
+    if (s.difficulty) $('difficulty').value = s.difficulty;
+  } catch {}
+  updateCount();
+  if (preset && parseNames(preset.names || '').length) newGame();
+
+  // ---------- Confetti ----------
+  function confetti() {
+    const cv = $('confetti'), ctx = cv.getContext('2d');
+    cv.width = innerWidth; cv.height = innerHeight;
+    const parts = Array.from({ length: 160 }, () => ({
+      x: Math.random() * cv.width, y: -20 - Math.random() * cv.height * .5,
+      vx: (Math.random() - .5) * 3, vy: 2 + Math.random() * 3,
+      s: 5 + Math.random() * 6, c: DOT[Math.floor(Math.random() * DOT.length)], a: Math.random() * 6,
+    }));
+    let frames = 0;
+    (function tick() {
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      parts.forEach(p => {
+        p.x += p.vx; p.y += p.vy; p.a += .1;
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.a);
+        ctx.fillStyle = p.c; ctx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); ctx.restore();
+      });
+      if (++frames < 240) requestAnimationFrame(tick); else ctx.clearRect(0, 0, cv.width, cv.height);
+    })();
+  }
+})();
+</script>
+</body>
+</html>
